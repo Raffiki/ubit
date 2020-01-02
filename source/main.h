@@ -1,6 +1,11 @@
 #include "MicroBit.h"
 
 #define MAX_BULLETS_IN_FLIGHT 20
+#define MAX_CONCURRENT_ENEMIES 5
+#define DIM_X 5
+#define DIM_Y 5
+
+MicroBit uBit;
 
 struct pos
 {
@@ -8,10 +13,11 @@ struct pos
     uint8_t y;
 };
 
-struct freelist
+struct list
 {
     struct pos *pos;
-    struct freelist *next;
+    struct list *next;
+    struct list *previous;
 };
 
 struct player
@@ -19,8 +25,9 @@ struct player
     uint8_t lives_left;
     uint8_t y_pos;
     uint8_t number_of_bullets_in_flight;
-    struct pos **bullets_in_flight;
+    struct list *bullets_in_flight;
 };
+struct player p;
 
 struct enemy
 {
@@ -31,42 +38,68 @@ struct enemy
     struct pos **bullets_in_flight;
 };
 
-struct freelist *bullets_to_left_freelist = NULL;
-struct player p ;
 
-void push_onto_freelist(freelist **head, pos *pos)
-{
-    freelist *new_head;
-    new_head = (freelist *)malloc(sizeof(freelist));
-
-    new_head->pos = pos;
-    new_head->next = *head;
-    *head = new_head;
+void init_player() {
+    p.lives_left = 0;
+    p.number_of_bullets_in_flight = 0;
+    p.y_pos = 0;
+    p.bullets_in_flight = NULL;
 }
 
-pos * pop(freelist **head)
-{
-    freelist *next_node = NULL;
-
-    if (*head == NULL)
-    {
+list * create_player_bullet() {
+    if (p.number_of_bullets_in_flight >= MAX_BULLETS_IN_FLIGHT) {
         return NULL;
     }
 
-    next_node = (*head)->next;
-    pos *ptr = (*head)->pos;
-    free(*head);
-    *head = next_node;
-    return ptr;
+    list *bullet = (list *)malloc(sizeof(struct list));
+    bullet->pos = (pos *)malloc(sizeof(struct pos));
+    bullet->pos->x = 0;
+    bullet->pos->y = p.y_pos;
+
+    //new bullet becomes head of list
+    if (p.bullets_in_flight == NULL) {
+        bullet->next = NULL;
+        bullet->previous = NULL;
+        p.bullets_in_flight = bullet;
+    }
+    else {
+        bullet->next = p.bullets_in_flight;
+        p.bullets_in_flight->previous = bullet;
+        bullet->previous = NULL;
+    }
+
+    p.bullets_in_flight = bullet;
+    p.number_of_bullets_in_flight++;
+
+	uBit.serial.send(ManagedString(bullet->pos->x));
+	uBit.serial.send(ManagedString(p.bullets_in_flight->pos->x));
+    return bullet;
 }
 
-void init_freelist()
-{
-    p = {10, 0, 0, (pos **)malloc(10 * sizeof(struct pos *))};
-    for (u_int8_t i = MAX_BULLETS_IN_FLIGHT - 1; i <= 0; i++)
-    {
-        pos *ptr = (pos *)malloc(sizeof(struct pos));
-        p.bullets_in_flight[i] = ptr;
-        push_onto_freelist(&bullets_to_left_freelist, ptr);
+void free_bullet(list *bullet) {
+
+    //remove singleton list
+    if (bullet->next == NULL && bullet->previous == NULL) {
+        p.bullets_in_flight == NULL;
     }
+    //remove end of list
+    else if (bullet->next == NULL) {
+        bullet->previous->next = NULL;
+    }
+    //remove head of list. Next becomes head of list
+    else if (bullet->previous == NULL)
+    {
+        bullet->next->previous = NULL;
+        p.bullets_in_flight = bullet->next;
+    }
+    //remove middle of list
+    else {
+        bullet->next->previous = bullet->previous;
+        bullet->previous->next = bullet->next;
+    }
+
+    //free bullet
+    free(bullet->pos);
+    free(bullet);
+    p.number_of_bullets_in_flight--;
 }

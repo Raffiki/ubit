@@ -1,20 +1,19 @@
 #include "main.h"
-
-MicroBit uBit;
+#include <stdio.h>
 
 uint8_t done = 0;
 
 void advance_game() {}
 void advance_bullets()
 {
+	list *position = p.bullets_in_flight;
 	for (uint8_t i = 0; i < p.number_of_bullets_in_flight; i++)
 	{
-		p.bullets_in_flight[i]->x++;
-	}
-
-	for (uint8_t i = 0; i < p.number_of_bullets_in_flight; i++)
-	{
-
+		position->pos->x++;
+		if (position->pos->x >= DIM_X) {
+			free_bullet(position);
+		}
+		position = position->next;
 	}
 }
 
@@ -23,11 +22,12 @@ void display_game()
 	uBit.display.clear();
 	uBit.display.image.setPixelValue(0, p.y_pos, 255);
 
-
+	list *position = p.bullets_in_flight;
 	for (uint8_t i = 0; i < p.number_of_bullets_in_flight; i++)
 	{
-		struct pos *bullet = p.bullets_in_flight[i];
-		uBit.display.image.setPixelValue(bullet->x, bullet->y, 255);
+		//uBit.serial.send(ManagedString(p.bullets_in_flight->pos->x));
+		uBit.display.image.setPixelValue(position->pos->x, position->pos->y, 255);
+		position = position->next;
 	}
 }
 
@@ -64,18 +64,13 @@ void on_move_down(MicroBitEvent e) {
 }
 
 void on_shoot(MicroBitEvent e) {
-
 	uBit.serial.send("shoot\n");
-	struct pos *next_bullet = pop(&bullets_to_left_freelist);
+	struct list *bullet = create_player_bullet();
 
-	if (next_bullet == NULL) {
+	if (bullet == NULL) {
 		uBit.serial.send("could not acquire next bullet\n");
 		return;
 	}
-
-	next_bullet->x = 0;
-	next_bullet->y = p.y_pos;
-	p.number_of_bullets_in_flight++;
 }
 
 
@@ -101,7 +96,7 @@ int main()
 {
 	uBit.init();
 	set_up_listeners();
-	init_freelist();
+	init_player();
 	run_loop();
 	release_fiber();
 }
