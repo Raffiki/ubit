@@ -1,0 +1,67 @@
+#include "MicroBit.h"
+
+MicroBit uBit;
+
+uint8_t field[5][5];
+int nr_of_pixels = 0;
+
+void reset_field() {
+	for (uint8_t x = 0; x < 5; x++) {
+		for (uint8_t y = 0; y < 5; y++) {
+			field[x][y] = 0;
+		}
+	}
+}
+void display_field() {
+	uBit.display.clear();
+	for (uint8_t x = 0; x < 5; x++) {
+		for (uint8_t y = 0; y < 5; y++) {
+			if (field[x][y]) {
+				uBit.display.image.setPixelValue(x, y, 255);
+			}
+		}
+	}
+}
+
+void spawn_pixel() {
+	nr_of_pixels++;
+	uint8_t x = uBit.random(5);
+	uint8_t y = uBit.random(5);
+	field[x][y] = 1;
+}
+
+void save_field(MicroBitEvent e) {
+
+    uint8_t *locs = (uint8_t *) malloc(nr_of_pixels * 2);
+    uint8_t pixel_nr = 0;
+
+	for (uint8_t x = 0; x < 5; x++) {
+		for (uint8_t y = 0; y < 5; y++) {
+			if (field[x][y]) {
+                locs[pixel_nr++] = x
+                locs[pixel_nr++] = y
+			}
+		}
+	}
+
+    uBit.storage.put("locs", locs, sizeof(locs));
+
+}
+
+void load_field(MicroBitEvent e);
+
+int main() {
+	uBit.init();
+	reset_field();
+	uBit.messageBus.listen(MICROBIT_ID_BUTTON_A, MICROBIT_BUTTON_EVT_CLICK, save_field);
+//	uBit.messageBus.listen(MICROBIT_ID_BUTTON_B, MICROBIT_BUTTON_EVT_CLICK, load_field);
+	while (1) {
+		for ( ; nr_of_pixels < 10; ) {
+				spawn_pixel();
+				display_field();
+				uBit.sleep(3000);
+			}
+		}
+	release_fiber();
+}
+

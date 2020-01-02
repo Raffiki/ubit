@@ -1,43 +1,107 @@
-/*
-The MIT License (MIT)
-
-Copyright (c) 2016 British Broadcasting Corporation.
-This software is provided by Lancaster University by arrangement with the BBC.
-
-Permission is hereby granted, free of charge, to any person obtaining a
-copy of this software and associated documentation files (the "Software"),
-to deal in the Software without restriction, including without limitation
-the rights to use, copy, modify, merge, publish, distribute, sublicense,
-and/or sell copies of the Software, and to permit persons to whom the
-Software is furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
-THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
-*/
-
-#include "MicroBit.h"
+#include "main.h"
 
 MicroBit uBit;
 
-int main()
+uint8_t done = 0;
+
+void advance_game() {}
+void advance_bullets()
 {
-    // Initialise the micro:bit runtime.
-    uBit.init();
+	for (uint8_t i = 0; i < p.number_of_bullets_in_flight; i++)
+	{
+		p.bullets_in_flight[i]->x++;
+	}
 
-    // Insert your code here!
-    uBit.display.scroll("HELLO WORLD! :)");
+	for (uint8_t i = 0; i < p.number_of_bullets_in_flight; i++)
+	{
 
-    // If main exits, there may still be other fibers running or registered event handlers etc.
-    // Simply release this fiber, which will mean we enter the scheduler. Worse case, we then
-    // sit in the idle task forever, in a power efficient sleep.
-    release_fiber();
+	}
 }
 
+void display_game()
+{
+	uBit.display.clear();
+	uBit.display.image.setPixelValue(0, p.y_pos, 255);
+
+
+	for (uint8_t i = 0; i < p.number_of_bullets_in_flight; i++)
+	{
+		struct pos *bullet = p.bullets_in_flight[i];
+		uBit.display.image.setPixelValue(bullet->x, bullet->y, 255);
+	}
+}
+
+uint8_t run_loop()
+{
+	uint8_t i = 0;
+	while (!done)
+	{
+		display_game();
+		if (i % 5 == 0) {
+			advance_bullets();
+			i = 0;
+		}
+		i++;
+		advance_game();
+		uBit.sleep(100);
+	}
+	return 0;
+}
+
+
+void spawn_enemy()
+{
+	uint8_t x = uBit.random(5);
+	uint8_t y = uBit.random(5);
+}
+
+void on_move_up(MicroBitEvent e) {
+	p.y_pos--;
+}
+
+void on_move_down(MicroBitEvent e) {
+	p.y_pos++;
+}
+
+void on_shoot(MicroBitEvent e) {
+
+	uBit.serial.send("shoot\n");
+	struct pos *next_bullet = pop(&bullets_to_left_freelist);
+
+	if (next_bullet == NULL) {
+		uBit.serial.send("could not acquire next bullet\n");
+		return;
+	}
+
+	next_bullet->x = 0;
+	next_bullet->y = p.y_pos;
+	p.number_of_bullets_in_flight++;
+}
+
+
+void on_save(MicroBitEvent e) {
+
+}
+
+void on_restore(MicroBitEvent e) {
+
+}
+
+void set_up_listeners()
+{
+    uBit.serial.send("setting up\n");
+	uBit.messageBus.listen(MICROBIT_ID_BUTTON_A, MICROBIT_BUTTON_EVT_CLICK, on_move_up);
+	uBit.messageBus.listen(MICROBIT_ID_BUTTON_B, MICROBIT_BUTTON_EVT_CLICK, on_move_down);
+	uBit.messageBus.listen(MICROBIT_ID_BUTTON_AB, MICROBIT_BUTTON_EVT_CLICK, on_shoot);
+	uBit.messageBus.listen(MICROBIT_ID_BUTTON_A, MICROBIT_BUTTON_EVT_LONG_CLICK, on_save);
+	uBit.messageBus.listen(MICROBIT_ID_BUTTON_B, MICROBIT_BUTTON_EVT_LONG_CLICK, on_restore);
+}
+
+int main()
+{
+	uBit.init();
+	set_up_listeners();
+	init_freelist();
+	run_loop();
+	release_fiber();
+}
