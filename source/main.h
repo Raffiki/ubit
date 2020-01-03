@@ -24,6 +24,7 @@ struct list
 struct player
 {
     uint8_t lives_left;
+    uint8_t x_pos;
     uint8_t y_pos;
     uint8_t number_of_bullets_in_flight;
     struct list *bullets_in_flight;
@@ -38,7 +39,7 @@ struct enemy
     uint8_t number_of_bullets_in_flight;
     struct list *bullets_in_flight;
 };
-struct enemy *enemies[MAX_CONCURRENT_ENEMIES];
+struct player *enemies[MAX_CONCURRENT_ENEMIES];
 
 uint8_t get_free_slot()
 {
@@ -64,7 +65,7 @@ uint8_t get_free_y_pos()
         uint8_t is_occupied = 0;
         for (uint8_t i = 0; i < MAX_CONCURRENT_ENEMIES; i++)
         {
-            if (enemies[i] != NULL && enemies[i]->x_pos == DIM_X - 1 && (enemies[i]->y_pos == random_y || (enemies[i]->y_pos + 1) == random_y))
+            if (enemies[i] != NULL && enemies[i]->x_pos == DIM_X - 1 && (enemies[i]->y_pos == random_y || (enemies[i]->y_pos) == random_y + 1))
             {
                 is_occupied = 1;
             }
@@ -99,13 +100,11 @@ void generate_enemy()
 
     if (free_y_pos == NULL)
     {
-        uBit.serial.send("cannot create enemy: no free y-slot\n");
+        uBit.serial.send("cannot create enemy: tried 10 times to find free slot ad random. Gave up...\n");
     }
     else
     {
-        uBit.serial.send(ManagedString(free_slot));
-        uBit.serial.send(ManagedString(free_y_pos));
-        enemy *e = (enemy *)malloc(sizeof(struct enemy));
+        player *e = (player *)malloc(sizeof(struct player));
         e->lives_left = 5;
         e->bullets_in_flight = NULL;
         e->number_of_bullets_in_flight = 0;
@@ -123,8 +122,9 @@ void remove_enemy(uint8_t i) {
 
 void init_player()
 {
-    p.lives_left = 0;
+    p.lives_left = 10;
     p.number_of_bullets_in_flight = 0;
+    p.x_pos = 0;
     p.y_pos = 0;
     p.bullets_in_flight = NULL;
 }

@@ -3,7 +3,21 @@
 
 uint8_t done = 0;
 
-void advance_game() {}
+void advance_game() {
+	if (p.lives_left <= 0) {
+   		uBit.display.print("YOU LOST! GAME OVER!");
+		done = 1;
+	}
+}
+
+void advance_enemy(uint8_t i) {
+	enemies[i]->x_pos--;
+	if (enemies[i]->x_pos < 0) {
+		p.lives_left--;
+		remove_enemy(i);
+	}
+}
+
 void advance_bullets()
 {
 	list *position = p.bullets_in_flight;
