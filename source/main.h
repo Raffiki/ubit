@@ -48,7 +48,7 @@ uint8_t get_free_slot()
 uint8_t get_free_y_pos()
 {
     uint8_t cont = 10;
-    uint8_t return_val = NULL;
+    uint8_t return_val = 100;
 
     while (cont > 0)
     {
@@ -69,8 +69,6 @@ uint8_t get_free_y_pos()
         }
         else
         {
-    uBit.serial.send(" found y location\n");
-		    uBit.serial.send(ManagedString(random_y));
             cont = 0;
             return_val = random_y;
         }
@@ -92,7 +90,7 @@ void generate_enemy()
 
     uint8_t free_y_pos = get_free_y_pos();
 
-    if (free_y_pos == NULL)
+    if (free_y_pos == 100)
     {
         uBit.serial.send("cannot create enemy: tried 10 times to find free slot ad random. Gave up...\n");
     }
