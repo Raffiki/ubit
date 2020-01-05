@@ -3,50 +3,19 @@
 
 uint8_t done = 0;
 
-void advance_game() {
-	if (p.lives_left <= 0) {
-   		uBit.display.print("YOU LOST! GAME OVER!");
+void advance_game()
+{
+	if (p.lives_left <= 0)
+	{
+		uBit.display.print("YOU LOST! GAME OVER!");
 		done = 1;
-	}
-}
-
-void advance_enemy(uint8_t i) {
-	enemies[i]->x_pos--;
-	if (enemies[i]->x_pos < 0) {
-		p.lives_left--;
-		remove_enemy(i);
 	}
 }
 
 void advance_bullets()
 {
-	list *position = p.bullets_in_flight;
-	for (uint8_t i = 0; i < p.number_of_bullets_in_flight; i++)
-	{
-		position->pos->x++;
-		if (position->pos->x >= DIM_X)
-		{
-			free_bullet(position);
-		}
-		else
-		{
-			//check if enemy hit
-			for (uint8_t i = 0; i < MAX_CONCURRENT_ENEMIES; i++)
-			{
-				if (enemies[i] != NULL && enemies[i]->x_pos == position->pos->x && enemies[i]->y_pos == position->pos->y)
-				{
-					//uBit.serial.send("enemy lives left\n");
-					//uBit.serial.send(ManagedString(enemies[i]->lives_left));
-					enemies[i]->lives_left--;
-					if (enemies[i]->lives_left == 0)
-					{
-						remove_enemy(i);
-					}
-				}
-			}
-		}
-		position = position->next;
-	}
+	advance_bullets_for(&p, 0);
+	check_bullet_impact(&p);
 }
 
 void display_game()
@@ -74,19 +43,30 @@ void display_game()
 
 uint8_t run_loop()
 {
-	uint8_t i = 0;
+	uint8_t i = 0, j = 0;
+
 	//generate new enemy between 5 and 15 seconds
 	uint8_t generate_enemy_cycles = 50 + uBit.random(100);
 
 	while (!done)
 	{
 		display_game();
+
+		//advance bullets every 500 ms
 		if (i % 5 == 0)
 		{
 			advance_bullets();
 			i = 0;
 		}
 		i++;
+
+		//advance enemies every 2000 ms
+		if (j % 30 == 0)
+		{
+			advance_enemies();
+			j = 0;
+		}
+		j++;
 
 		if (generate_enemy_cycles == 0)
 		{
@@ -114,7 +94,7 @@ void on_move_down(MicroBitEvent e)
 void on_shoot(MicroBitEvent e)
 {
 	uBit.serial.send("shoot\n");
-	struct list *bullet = create_player_bullet();
+	struct list *bullet = create_player_bullet(&p);
 
 	if (bullet == NULL)
 	{

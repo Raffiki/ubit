@@ -30,15 +30,6 @@ struct player
     struct list *bullets_in_flight;
 };
 struct player p;
-
-struct enemy
-{
-    uint8_t lives_left;
-    uint8_t x_pos;
-    uint8_t y_pos;
-    uint8_t number_of_bullets_in_flight;
-    struct list *bullets_in_flight;
-};
 struct player *enemies[MAX_CONCURRENT_ENEMIES];
 
 uint8_t get_free_slot()
@@ -65,7 +56,7 @@ uint8_t get_free_y_pos()
         uint8_t is_occupied = 0;
         for (uint8_t i = 0; i < MAX_CONCURRENT_ENEMIES; i++)
         {
-            if (enemies[i] != NULL && enemies[i]->x_pos == DIM_X - 1 && (enemies[i]->y_pos == random_y || (enemies[i]->y_pos) == random_y + 1))
+            if (enemies[i] != NULL && enemies[i]->x_pos == DIM_X - 1 && (enemies[i]->y_pos == random_y || enemies[i]->y_pos == random_y + 1))
             {
                 is_occupied = 1;
             }
@@ -73,10 +64,13 @@ uint8_t get_free_y_pos()
 
         if (is_occupied > 0)
         {
+		    uBit.serial.send(ManagedString(random_y));
             cont--;
         }
         else
         {
+    uBit.serial.send(" found y location\n");
+		    uBit.serial.send(ManagedString(random_y));
             cont = 0;
             return_val = random_y;
         }
@@ -115,7 +109,9 @@ void generate_enemy()
     }
 }
 
-void remove_enemy(uint8_t i) {
+void remove_enemy(uint8_t i)
+{
+    uBit.serial.send("removing enemy\n");
     free(enemies[i]);
     enemies[i] = NULL;
 }
@@ -131,15 +127,16 @@ void init_player()
 
 void init_enemies()
 {
+    //uBit.serial.send("cleaning enemy locations");
     for (uint8_t i = 0; i < MAX_CONCURRENT_ENEMIES; i++)
     {
         enemies[i] = NULL;
     }
 }
 
-list *create_player_bullet()
+list *create_player_bullet(player *p)
 {
-    if (p.number_of_bullets_in_flight >= MAX_BULLETS_IN_FLIGHT)
+    if (p->number_of_bullets_in_flight >= MAX_BULLETS_IN_FLIGHT)
     {
         return NULL;
     }
@@ -147,27 +144,25 @@ list *create_player_bullet()
     list *bullet = (list *)malloc(sizeof(struct list));
     bullet->pos = (pos *)malloc(sizeof(struct pos));
     bullet->pos->x = 0;
-    bullet->pos->y = p.y_pos;
+    bullet->pos->y = p->y_pos;
 
     //new bullet becomes head of list
-    if (p.bullets_in_flight == NULL)
+    if (p->bullets_in_flight == NULL)
     {
         bullet->next = NULL;
         bullet->previous = NULL;
-        p.bullets_in_flight = bullet;
+        p->bullets_in_flight = bullet;
     }
     else
     {
-        bullet->next = p.bullets_in_flight;
-        p.bullets_in_flight->previous = bullet;
+        bullet->next = p->bullets_in_flight;
+        p->bullets_in_flight->previous = bullet;
         bullet->previous = NULL;
     }
 
-    p.bullets_in_flight = bullet;
-    p.number_of_bullets_in_flight++;
+    p->bullets_in_flight = bullet;
+    p->number_of_bullets_in_flight++;
 
-    uBit.serial.send(ManagedString(bullet->pos->x));
-    uBit.serial.send(ManagedString(p.bullets_in_flight->pos->x));
     return bullet;
 }
 
@@ -201,4 +196,77 @@ void free_bullet(list *bullet)
     free(bullet->pos);
     free(bullet);
     p.number_of_bullets_in_flight--;
+}
+
+void advance_enemy(uint8_t i)
+{
+    enemies[i]->x_pos--;
+    if (enemies[i]->x_pos == 0)
+    {
+        p.lives_left--;
+        remove_enemy(i);
+    }
+}
+
+void advance_enemies()
+{
+    for (uint8_t i = 0; i < MAX_CONCURRENT_ENEMIES; i++)
+    {
+        if (enemies[i] != NULL)
+        {
+            advance_enemy(i);
+        }
+    }
+}
+
+void advance_bullets_for(player *p, uint8_t is_enemy)
+{
+    list *position = p->bullets_in_flight;
+    for (uint8_t i = 0; i < p->number_of_bullets_in_flight; i++)
+    {
+        if (is_enemy == 0)
+        {
+            position->pos->x++;
+            if (position->pos->x >= DIM_X)
+            {
+                free_bullet(position);
+            }
+        }
+        else
+        {
+            position->pos->x--;
+            if (position->pos->x == 0)
+            {
+                free_bullet(position);
+            }
+        }
+        position = position->next;
+    }
+}
+
+void check_bullet_impact(player *pl)
+{
+    list *position = pl->bullets_in_flight;
+    for (uint8_t i = 0; i < pl->number_of_bullets_in_flight; i++)
+    {
+        //check if player is hit
+        if (p.x_pos == position->pos->x && p.y_pos == position->pos->y)
+        {
+            p.lives_left--;
+        }
+
+        //check if enemy hit
+        for (uint8_t i = 0; i < MAX_CONCURRENT_ENEMIES; i++)
+        {
+            if (enemies[i] != NULL && enemies[i]->x_pos == position->pos->x && enemies[i]->y_pos == position->pos->y)
+            {
+                enemies[i]->lives_left--;
+                if (enemies[i]->lives_left == 0)
+                {
+                    remove_enemy(i);
+                }
+            }
+        }
+    }
+    position = position->next;
 }
