@@ -34,7 +34,6 @@ void let_enemies_shoot()
 
 void advance_bullets()
 {
-
 	advance_bullets_for(&p, 0);
 	check_bullet_impact(&p);
 
@@ -46,6 +45,8 @@ void advance_bullets()
 			check_bullet_impact(enemies[i]);
 		}
 	}
+
+	check_bullet_collisions(&p);
 }
 
 void display_game()
@@ -101,7 +102,7 @@ uint8_t run_loop()
 		//advance enemies every 2000 ms
 		if (j % 30 == 0)
 		{
-			//advance_enemies();
+			advance_enemies();
 			j = 0;
 		}
 		j++;

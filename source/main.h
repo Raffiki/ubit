@@ -171,20 +171,24 @@ list *create_player_bullet(player *p)
     return bullet;
 }
 
+/**
+ *  frees the bullet from bulletlist of player/enemy
+ *  returns pointer to next bullet in list (might be NULL)
+ */
 list *free_bullet(list *bullet, player *p)
 {
 
     //remove singleton list
     if (bullet->next == NULL && bullet->previous == NULL)
     {
-        uBit.serial.send("remove singleton\n");
+        //uBit.serial.send("remove singleton\n");
         p->bullets_in_flight = NULL;
     }
 
     //remove end of list
     else if (bullet->next == NULL)
     {
-        uBit.serial.send("remove tail\n");
+        //uBit.serial.send("remove tail\n");
         bullet->previous->next = NULL;
     }
 
@@ -192,14 +196,14 @@ list *free_bullet(list *bullet, player *p)
     else if (bullet->previous == NULL)
     {
 
-        uBit.serial.send("remove head\n");
+        //uBit.serial.send("remove head\n");
         bullet->next->previous = NULL;
         p->bullets_in_flight = bullet->next;
     }
     //remove middle of list
     else
     {
-        uBit.serial.send("remove middle\n");
+        //uBit.serial.send("remove middle\n");
         bullet->next->previous = bullet->previous;
         bullet->previous->next = bullet->next;
     }
@@ -257,7 +261,7 @@ void advance_bullets_for(player *p, uint8_t is_enemy)
 
     while (bullet)
     {
-        if (is_enemy == 0)
+        if (is_enemy == 0) //replace with p == &p
         {
 
             bullet->pos->x++;
@@ -314,6 +318,46 @@ void check_bullet_impact(player *pl)
             }
         }
         bullet = bullet->next;
+    }
+}
+
+void check_bullet_collisions(player *pl)
+{
+    for (uint8_t i = 0; i < MAX_CONCURRENT_ENEMIES; i++)
+    {
+        if (enemies[i] != NULL)
+        {
+            list *bullet = pl->bullets_in_flight;
+
+            while (bullet)
+            {
+                list *other_bullet = enemies[i]->bullets_in_flight;
+                uint8_t should_free_bullet = 0;
+
+                while (other_bullet)
+                {
+                    if (bullet->pos->x == other_bullet->pos->x && bullet->pos->y == other_bullet->pos->y)
+                    {
+                        uBit.serial.send("bullet collision\n");
+                        should_free_bullet = 1;
+                        other_bullet = free_bullet(other_bullet, enemies[i]);
+                    }
+                    else
+                    {
+                        other_bullet = other_bullet->next;
+                    }
+                }
+
+                if (should_free_bullet > 0)
+                {
+                    bullet = free_bullet(bullet, pl);
+                }
+                else
+                {
+                    bullet = bullet->next;
+                }
+            }
+        }
     }
 }
 
