@@ -179,7 +179,6 @@ list *free_bullet(list *bullet, player *p)
     {
         uBit.serial.send("remove singleton\n");
         p->bullets_in_flight = NULL;
-
     }
 
     //remove end of list
@@ -258,67 +257,69 @@ void advance_bullets_for(player *p, uint8_t is_enemy)
 
     while (bullet)
     {
-        bullet->pos->x++;
-
-        if (bullet->pos->x >= DIM_X)
+        if (is_enemy == 0)
         {
-            list *next = free_bullet(bullet, p);
-            bullet = next;
+
+            bullet->pos->x++;
+
+            if (bullet->pos->x >= DIM_X)
+            {
+                list *next = free_bullet(bullet, p);
+                bullet = next;
+            }
+            else
+            {
+                bullet = bullet->next;
+            }
         }
         else
         {
-            bullet = bullet->next;
+            bullet->pos->x--;
+            if (bullet->pos->x < 0 || bullet->pos->x > 4) // cannot go negative...
+            {
+                list *next = free_bullet(bullet, p);
+                bullet = next;
+            }
+            else
+            {
+                bullet = bullet->next;
+            }
         }
-        //            uBit.serial.send("advancing enemy bullet\n");
-        //            uBit.serial.send(ManagedString(position->pos->x));
-        //            uBit.serial.send("  ");
-        //            uBit.serial.send(ManagedString(position->pos->y));
-
-        //            bullet->pos->x--;
-        //            if (bullet->pos->x <= 0)
-        //            {
-        //                free_bullet(bullet);
-        //                bullet = p->bullets_in_flight;
-        //            }
-        //            else
-        //            {
-        //                bullet = bullet->next;
-        //            }
     }
 }
 
 void check_bullet_impact(player *pl)
 {
-    list *position = pl->bullets_in_flight;
-    for (uint8_t i = 0; i < pl->number_of_bullets_in_flight; i++)
+    list *bullet = pl->bullets_in_flight;
+
+    while (bullet)
     {
         //check if player is hit
-        if (p.x_pos == position->pos->x && p.y_pos == position->pos->y)
+        if (p.x_pos == bullet->pos->x && p.y_pos == bullet->pos->y)
         {
+            uBit.serial.send("player hit");
             p.lives_left--;
         }
 
         //check if enemy hit
         for (uint8_t i = 0; i < MAX_CONCURRENT_ENEMIES; i++)
         {
-            if (enemies[i] != NULL && enemies[i]->x_pos == position->pos->x && (enemies[i]->y_pos == position->pos->y || enemies[i]->y_pos + 1 == position->pos->y))
+            if (enemies[i] != NULL && enemies[i]->x_pos == bullet->pos->x && (enemies[i]->y_pos == bullet->pos->y || enemies[i]->y_pos + 1 == bullet->pos->y))
             {
                 enemies[i]->lives_left--;
-                uBit.serial.send(ManagedString(enemies[i]->lives_left));
                 if (enemies[i]->lives_left == 0)
                 {
                     remove_enemy(i);
                 }
             }
         }
+        bullet = bullet->next;
     }
-    position = position->next;
 }
 
 void remove_enemy(uint8_t i)
 {
     uBit.serial.send("removing enemy\n");
-    uBit.serial.send(ManagedString(enemies[i]->number_of_bullets_in_flight));
 
     list *bullet = enemies[i]->bullets_in_flight;
 

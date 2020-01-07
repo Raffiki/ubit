@@ -38,14 +38,14 @@ void advance_bullets()
 	advance_bullets_for(&p, 0);
 	check_bullet_impact(&p);
 
-	//for (uint8_t i = 0; i < MAX_CONCURRENT_ENEMIES; i++)
-	//{
-	//	if (enemies[i] != NULL)
-	//	{
-	//		advance_bullets_for(enemies[i], 1);
-	//		check_bullet_impact(enemies[i]);
-	//	}
-	//}
+	for (uint8_t i = 0; i < MAX_CONCURRENT_ENEMIES; i++)
+	{
+		if (enemies[i] != NULL)
+		{
+			advance_bullets_for(enemies[i], 1);
+			check_bullet_impact(enemies[i]);
+		}
+	}
 }
 
 void display_game()
@@ -92,7 +92,7 @@ uint8_t run_loop()
 		//advance bullets every 500 ms
 		if (i % 5 == 0)
 		{
-			//let_enemies_shoot();
+			let_enemies_shoot();
 			advance_bullets();
 			i = 0;
 		}
