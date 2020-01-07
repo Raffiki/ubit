@@ -1,7 +1,7 @@
 #include "MicroBit.h"
 
-#define MAX_BULLETS_IN_FLIGHT 20
-#define MAX_CONCURRENT_ENEMIES 5
+#define MAX_BULLETS_IN_FLIGHT 10
+#define MAX_CONCURRENT_ENEMIES 3
 #define ENEMY_WIDTH 2
 #define DIM_X 5
 #define DIM_Y 5
@@ -31,6 +31,8 @@ struct player
 };
 struct player p;
 struct player *enemies[MAX_CONCURRENT_ENEMIES];
+
+void remove_enemy(uint8_t i);
 
 uint8_t get_free_slot()
 {
@@ -64,7 +66,7 @@ uint8_t get_free_y_pos()
 
         if (is_occupied > 0)
         {
-		    uBit.serial.send(ManagedString(random_y));
+            uBit.serial.send(ManagedString(random_y));
             cont--;
         }
         else
@@ -104,14 +106,8 @@ void generate_enemy()
         e->y_pos = free_y_pos;
 
         enemies[free_slot] = e;
+        uBit.serial.send(ManagedString(e->number_of_bullets_in_flight));
     }
-}
-
-void remove_enemy(uint8_t i)
-{
-    uBit.serial.send("removing enemy\n");
-    free(enemies[i]);
-    enemies[i] = NULL;
 }
 
 void init_player()
@@ -136,12 +132,23 @@ list *create_player_bullet(player *p)
 {
     if (p->number_of_bullets_in_flight >= MAX_BULLETS_IN_FLIGHT)
     {
+        uBit.serial.send("max bullets in flight\n");
         return NULL;
     }
 
     list *bullet = (list *)malloc(sizeof(struct list));
+    if (bullet == NULL)
+    {
+        uBit.serial.send("could not malloc bullet\n");
+        return NULL;
+    }
     bullet->pos = (pos *)malloc(sizeof(struct pos));
-    bullet->pos->x = 0;
+    if (bullet->pos == NULL)
+    {
+        uBit.serial.send("could not malloc bullet->pos\n");
+        return NULL;
+    }
+    bullet->pos->x = p->x_pos;
     bullet->pos->y = p->y_pos;
 
     //new bullet becomes head of list
@@ -164,36 +171,64 @@ list *create_player_bullet(player *p)
     return bullet;
 }
 
-void free_bullet(list *bullet)
+list *free_bullet(list *bullet, player *p)
 {
 
     //remove singleton list
     if (bullet->next == NULL && bullet->previous == NULL)
     {
-        p.bullets_in_flight == NULL;
+        uBit.serial.send("remove singleton\n");
+        p->bullets_in_flight = NULL;
+
     }
+
     //remove end of list
     else if (bullet->next == NULL)
     {
+        uBit.serial.send("remove tail\n");
         bullet->previous->next = NULL;
     }
+
     //remove head of list. Next becomes head of list
     else if (bullet->previous == NULL)
     {
+
+        uBit.serial.send("remove head\n");
         bullet->next->previous = NULL;
-        p.bullets_in_flight = bullet->next;
+        p->bullets_in_flight = bullet->next;
     }
     //remove middle of list
     else
     {
+        uBit.serial.send("remove middle\n");
         bullet->next->previous = bullet->previous;
         bullet->previous->next = bullet->next;
     }
 
     //free bullet
+    list *next = NULL;
+    if (bullet->next != NULL)
+    {
+        next = bullet->next;
+    }
+
+    if (bullet == NULL)
+    {
+
+        uBit.serial.send("freeing bullet is NULL\n");
+    }
+    if (bullet->pos == NULL)
+    {
+
+        uBit.serial.send("freeing bullet pos is NULL\n");
+    }
     free(bullet->pos);
     free(bullet);
-    p.number_of_bullets_in_flight--;
+
+    uBit.serial.send("free\n");
+    p->number_of_bullets_in_flight--;
+
+    return next;
 }
 
 void advance_enemy(uint8_t i)
@@ -219,26 +254,36 @@ void advance_enemies()
 
 void advance_bullets_for(player *p, uint8_t is_enemy)
 {
-    list *position = p->bullets_in_flight;
-    for (uint8_t i = 0; i < p->number_of_bullets_in_flight; i++)
+    list *bullet = p->bullets_in_flight;
+
+    while (bullet)
     {
-        if (is_enemy == 0)
+        bullet->pos->x++;
+
+        if (bullet->pos->x >= DIM_X)
         {
-            position->pos->x++;
-            if (position->pos->x >= DIM_X)
-            {
-                free_bullet(position);
-            }
+            list *next = free_bullet(bullet, p);
+            bullet = next;
         }
         else
         {
-            position->pos->x--;
-            if (position->pos->x == 0)
-            {
-                free_bullet(position);
-            }
+            bullet = bullet->next;
         }
-        position = position->next;
+        //            uBit.serial.send("advancing enemy bullet\n");
+        //            uBit.serial.send(ManagedString(position->pos->x));
+        //            uBit.serial.send("  ");
+        //            uBit.serial.send(ManagedString(position->pos->y));
+
+        //            bullet->pos->x--;
+        //            if (bullet->pos->x <= 0)
+        //            {
+        //                free_bullet(bullet);
+        //                bullet = p->bullets_in_flight;
+        //            }
+        //            else
+        //            {
+        //                bullet = bullet->next;
+        //            }
     }
 }
 
@@ -256,9 +301,10 @@ void check_bullet_impact(player *pl)
         //check if enemy hit
         for (uint8_t i = 0; i < MAX_CONCURRENT_ENEMIES; i++)
         {
-            if (enemies[i] != NULL && enemies[i]->x_pos == position->pos->x && enemies[i]->y_pos == position->pos->y)
+            if (enemies[i] != NULL && enemies[i]->x_pos == position->pos->x && (enemies[i]->y_pos == position->pos->y || enemies[i]->y_pos + 1 == position->pos->y))
             {
                 enemies[i]->lives_left--;
+                uBit.serial.send(ManagedString(enemies[i]->lives_left));
                 if (enemies[i]->lives_left == 0)
                 {
                     remove_enemy(i);
@@ -267,4 +313,23 @@ void check_bullet_impact(player *pl)
         }
     }
     position = position->next;
+}
+
+void remove_enemy(uint8_t i)
+{
+    uBit.serial.send("removing enemy\n");
+    uBit.serial.send(ManagedString(enemies[i]->number_of_bullets_in_flight));
+
+    list *bullet = enemies[i]->bullets_in_flight;
+
+    while (bullet != NULL)
+    {
+        list *bullet_to_remove = bullet;
+        bullet = bullet->next;
+        free(bullet_to_remove->pos);
+        free(bullet_to_remove);
+    }
+
+    free(enemies[i]);
+    enemies[i] = NULL;
 }

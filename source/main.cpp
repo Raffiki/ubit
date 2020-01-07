@@ -12,10 +12,40 @@ void advance_game()
 	}
 }
 
+void let_enemies_shoot()
+{
+	for (uint8_t i = 0; i < MAX_CONCURRENT_ENEMIES; i++)
+	{
+		if (enemies[i] != NULL)
+		{
+			if (uBit.random(10) % 10 == 0)
+			{
+				//uBit.serial.send(ManagedString(enemies[i]->number_of_bullets_in_flight));
+				struct list *bullet = create_player_bullet(enemies[i]);
+
+				if (bullet == NULL)
+				{
+					uBit.serial.send("could not acquire next bullet for enemy\n");
+				}
+			}
+		}
+	}
+}
+
 void advance_bullets()
 {
+
 	advance_bullets_for(&p, 0);
 	check_bullet_impact(&p);
+
+	//for (uint8_t i = 0; i < MAX_CONCURRENT_ENEMIES; i++)
+	//{
+	//	if (enemies[i] != NULL)
+	//	{
+	//		advance_bullets_for(enemies[i], 1);
+	//		check_bullet_impact(enemies[i]);
+	//	}
+	//}
 }
 
 void display_game()
@@ -37,6 +67,13 @@ void display_game()
 		{
 			uBit.display.image.setPixelValue(enemies[i]->x_pos, enemies[i]->y_pos, 255);
 			uBit.display.image.setPixelValue(enemies[i]->x_pos, enemies[i]->y_pos + 1, 255);
+
+			list *bullet = enemies[i]->bullets_in_flight;
+			while (bullet != NULL)
+			{
+				uBit.display.image.setPixelValue(bullet->pos->x, bullet->pos->y, 255);
+				bullet = bullet->next;
+			}
 		}
 	}
 }
@@ -55,6 +92,7 @@ uint8_t run_loop()
 		//advance bullets every 500 ms
 		if (i % 5 == 0)
 		{
+			//let_enemies_shoot();
 			advance_bullets();
 			i = 0;
 		}
@@ -63,7 +101,7 @@ uint8_t run_loop()
 		//advance enemies every 2000 ms
 		if (j % 30 == 0)
 		{
-			advance_enemies();
+			//advance_enemies();
 			j = 0;
 		}
 		j++;
